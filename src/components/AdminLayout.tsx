@@ -23,6 +23,8 @@ import {
   PanelLeft
 } from "lucide-react";
 
+import { DatabaseStatusIndicator } from "./DatabaseStatusIndicator";
+
 export function AdminLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const location = useLocation();
@@ -120,15 +122,21 @@ export function AdminLayout() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header */}
-        <header className="bg-white border-b border-gray-200 h-16 flex items-center px-6 gap-4">
-          <button 
-            className="text-gray-600 hover:text-indigo-600"
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          >
-            <PanelLeft size={24} />
-          </button>
-          <div className="font-semibold text-gray-800 flex items-center gap-2">
-            Admin Panel
+        <header className="bg-white border-b border-gray-200 h-16 flex items-center px-6 gap-4 justify-between">
+          <div className="flex items-center gap-4">
+            <button 
+              className="text-gray-600 hover:text-indigo-600"
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            >
+              <PanelLeft size={24} />
+            </button>
+            <div className="font-semibold text-gray-800 flex items-center gap-2">
+              Admin Panel
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <DatabaseStatusIndicator />
           </div>
         </header>
 

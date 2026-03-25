@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../../lib/firebase";
 import { Save, Plus, Trash2, Image as ImageIcon, Upload, Monitor, Award, Users, BookOpen, ShieldCheck, Clock, Star, CheckCircle, Target, Eye } from "lucide-react";
+import { useWebsiteContent } from "../../contexts/WebsiteContentContext";
 
 const AVAILABLE_ICONS = [
   { name: "Monitor", icon: Monitor },
@@ -23,21 +24,13 @@ const TABS = [
 ];
 
 export function AdminWebsiteContent() {
+  const { content: defaultContent } = useWebsiteContent();
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [content, setContent] = useState<any>({
-    instituteInfo: { logoUrl: "", fullName: "", shortName: "", tagline: "", footerDescription: "", footerCourses: [] },
-    heroSection: { badgeText: "", titleLine1: "", titleHighlight: "", description: "" },
-    stats: [],
-    about: { sectionTitle: "", paragraphs: [], cards: [] },
-    whyChooseUs: { sectionTitle: "", subtitle: "", highlights: [], checklist: [] },
-    contactInfo: { sectionTitle: "", subtitle: "", address: "", phone: "", email: "", workingHours: "", mapUrl: "" },
-    ctaSection: { title: "", description: "" },
-    testimonials: []
-  });
+  const [content, setContent] = useState<any>(defaultContent);
 
   useEffect(() => {
     const fetchContent = async () => {
@@ -46,6 +39,8 @@ export function AdminWebsiteContent() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setContent(prev => ({ ...prev, ...docSnap.data() }));
+        } else {
+          setContent(defaultContent);
         }
       } catch (error) {
         console.error("Error fetching content:", error);
@@ -54,7 +49,7 @@ export function AdminWebsiteContent() {
       }
     };
     fetchContent();
-  }, []);
+  }, [defaultContent]);
 
   const handleSave = async () => {
     setSaving(true);

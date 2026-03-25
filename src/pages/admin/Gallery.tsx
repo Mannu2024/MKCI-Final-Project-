@@ -25,8 +25,8 @@ export function AdminGallery() {
     category: "",
     active: true,
   });
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
   const fetchGallery = async () => {
     setLoading(true);
@@ -57,8 +57,8 @@ export function AdminGallery() {
       category: "",
       active: true,
     });
-    setSelectedFile(null);
-    setPreviewUrl(null);
+    setSelectedFiles([]);
+    setPreviewUrls([]);
     setExternalUrl("");
     setUploadMethod('file');
     setIsModalOpen(true);
@@ -66,8 +66,8 @@ export function AdminGallery() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setSelectedFile(null);
-    setPreviewUrl(null);
+    setSelectedFiles([]);
+    setPreviewUrls([]);
     setExternalUrl("");
   };
 
@@ -80,18 +80,20 @@ export function AdminGallery() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files);
+      setSelectedFiles(files);
+      
+      const urls = files.map(file => URL.createObjectURL(file));
+      setPreviewUrls(urls);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (uploadMethod === 'file' && !selectedFile) {
-      alert("Please select an image to upload.");
+    if (uploadMethod === 'file' && selectedFiles.length === 0) {
+      alert("Please select at least one image to upload.");
       return;
     }
     
@@ -102,21 +104,30 @@ export function AdminGallery() {
 
     setUploading(true);
     try {
-      let finalImageUrl = externalUrl;
-
-      if (uploadMethod === 'file' && selectedFile) {
-        // 1. Upload image to Firebase Storage
-        const storageRef = ref(storage, `gallery/${Date.now()}-${selectedFile.name}`);
-        await uploadBytes(storageRef, selectedFile);
-        finalImageUrl = await getDownloadURL(storageRef);
+      if (uploadMethod === 'file' && selectedFiles.length > 0) {
+        const uploadPromises = selectedFiles.map(async (file, index) => {
+          const storageRef = ref(storage, `gallery/${Date.now()}-${file.name}`);
+          await uploadBytes(storageRef, file);
+          const finalImageUrl = await getDownloadURL(storageRef);
+          
+          const imageTitle = selectedFiles.length > 1 ? `${formData.title} ${index + 1}` : formData.title;
+          
+          await addDoc(collection(db, "gallery"), {
+            ...formData,
+            title: imageTitle,
+            imageUrl: finalImageUrl,
+            createdAt: new Date().toISOString()
+          });
+        });
+        
+        await Promise.all(uploadPromises);
+      } else if (uploadMethod === 'url') {
+        await addDoc(collection(db, "gallery"), {
+          ...formData,
+          imageUrl: externalUrl,
+          createdAt: new Date().toISOString()
+        });
       }
-
-      // 2. Save metadata to Firestore
-      await addDoc(collection(db, "gallery"), {
-        ...formData,
-        imageUrl: finalImageUrl,
-        createdAt: new Date().toISOString()
-      });
 
       handleCloseModal();
       fetchGallery();
@@ -273,13 +284,19 @@ export function AdminGallery() {
                 {/* Image Upload Area */}
                 {uploadMethod === 'file' ? (
                   <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-700">Image File</label>
+                    <label className="text-sm font-medium text-gray-700">Image Files (Multiple allowed)</label>
                     <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl hover:border-indigo-500 transition-colors bg-gray-50 relative overflow-hidden">
-                      {previewUrl ? (
-                        <div className="absolute inset-0">
-                          <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                            <p className="text-white font-medium">Click to change</p>
+                      {previewUrls.length > 0 ? (
+                        <div className="absolute inset-0 bg-gray-100 overflow-y-auto p-2">
+                          <div className="grid grid-cols-3 gap-2">
+                            {previewUrls.map((url, idx) => (
+                              <div key={idx} className="aspect-square relative rounded-md overflow-hidden bg-white shadow-sm">
+                                <img src={url} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity z-10">
+                            <p className="text-white font-medium">Click to change files</p>
                           </div>
                         </div>
                       ) : (
@@ -287,11 +304,11 @@ export function AdminGallery() {
                           <ImageIcon className="mx-auto h-12 w-12 text-gray-400" />
                           <div className="flex text-sm text-gray-600 justify-center">
                             <span className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
-                              <span>Upload a file</span>
+                              <span>Upload files</span>
                             </span>
                             <p className="pl-1">or drag and drop</p>
                           </div>
-                          <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
+                          <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB (Select multiple)</p>
                         </div>
                       )}
                       <input 
@@ -299,7 +316,8 @@ export function AdminGallery() {
                         name="file-upload" 
                         type="file" 
                         accept="image/*"
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                        multiple
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" 
                         onChange={handleFileChange}
                         required={uploadMethod === 'file'}
                       />
@@ -378,7 +396,7 @@ export function AdminGallery() {
               <button 
                 type="submit" 
                 form="uploadForm"
-                disabled={uploading || (uploadMethod === 'file' && !selectedFile) || (uploadMethod === 'url' && !externalUrl)}
+                disabled={uploading || (uploadMethod === 'file' && selectedFiles.length === 0) || (uploadMethod === 'url' && !externalUrl)}
                 className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-70 flex items-center gap-2"
               >
                 {uploading ? (
